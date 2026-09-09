@@ -1,0 +1,10 @@
+name: "Android System & Permission Fixer"
+description: "Auto-grant WRITE_SECURE_SETTINGS & matikan Phantom Process Killer (Android 12/13/14)"
+commands:
+  - "pm grant com.jargo.adboptimizer android.permission.WRITE_SECURE_SETTINGS"
+  - "pm grant com.jargo.adboptimizer android.permission.DUMP"
+  - "pm grant com.jargo.adboptimizer android.permission.READ_LOGS"
+  - "appops set com.jargo.adboptimizer RUN_IN_BACKGROUND allow"
+  - "appops set com.jargo.adboptimizer GET_USAGE_STATS allow"
+  - "device_config put activity_manager max_phantom_processes 2147483647"
+  - "settings put global settings_enable_monitor_phantom_procs false"
