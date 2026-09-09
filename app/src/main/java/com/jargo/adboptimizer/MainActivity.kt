@@ -1,5 +1,6 @@
 package com.jargo.adboptimizer
 
+import android.content.res.AssetManager
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -21,18 +22,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.yaml.snakeyaml.Yaml
-import java.io.InputStream
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val assetMgr = assets
         setContent {
             MaterialTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    OptimizerScreen(assetsManager = assets)
+                    OptimizerScreen(assetsManager = assetMgr)
                 }
             }
         }
@@ -40,7 +41,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun OptimizerScreen(assetsManager: android.content.res.AssetManager) {
+fun OptimizerScreen(assetsManager: AssetManager) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -100,11 +101,11 @@ fun OptimizerScreen(assetsManager: android.content.res.AssetManager) {
                                 logs += "> Mengisi koneksi ADB ke 127.0.0.1:$cPort...\n"
                                 scope.launch {
                                     val res = AdbManager.connect(port = cPort)
-                                    res.onSuccess { msg ->
-                                        logs += "$msg\n"
+                                    if (res.isSuccess) {
+                                        logs += "${res.getOrNull()}\n"
                                         isConnected = true
-                                    }.onFailure { err ->
-                                        logs += "${err.localizedMessage}\n"
+                                    } else {
+                                        logs += "${res.exceptionOrNull()?.localizedMessage}\n"
                                         isConnected = false
                                     }
                                 }
@@ -131,16 +132,17 @@ fun OptimizerScreen(assetsManager: android.content.res.AssetManager) {
                         for (file in moduleFiles.sorted()) {
                             if (file.endsWith(".yaml") || file.endsWith(".yml")) {
                                 logs += "\n[Modul]: $file\n"
-                                val inputStream: InputStream = assetsManager.open("modules/$file")
-                                val yaml = Yaml()
-                                val data: Map<String, Any> = yaml.load(inputStream)
-                                val commands = data["commands"] as? List<*>
+                                assetsManager.open("modules/$file").use { inputStream ->
+                                    val yaml = Yaml()
+                                    val data = yaml.load<Map<String, Any>>(inputStream)
+                                    val commands = data["commands"] as? List<*>
 
-                                commands?.forEach { cmd ->
-                                    val rawCmd = cmd.toString()
-                                    logs += "> $rawCmd\n"
-                                    val res = AdbManager.executeCommand(rawCmd)
-                                    logs += "$res\n"
+                                    commands?.forEach { cmd ->
+                                        val rawCmd = cmd.toString()
+                                        logs += "> $rawCmd\n"
+                                        val res = AdbManager.executeCommand(rawCmd)
+                                        logs += "$res\n"
+                                    }
                                 }
                             }
                         }
