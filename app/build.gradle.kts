@@ -59,8 +59,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
-    // Correct JitPack Coordinate for Multi-Module Repo & Tag v1.2.6
-    implementation("com.github.mobile-native-foundation.dadb:dadb:v1.2.6")
+    // Official Maven Central Artifact for Embedded ADB Engine & SnakeYAML
+    implementation("dev.mobile:dadb:1.2.6")
     implementation("org.yaml:snakeyaml:2.2")
 
     testImplementation("junit:junit:4.13.2")
