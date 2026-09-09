@@ -21,6 +21,21 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Ensure Keystore Exists
+        run: |
+          if [ ! -f app/release.keystore ]; then
+            echo "release.keystore not found, generating fallback key..."
+            keytool -genkeypair -v \
+              -keystore app/release.keystore \
+              -alias mykeyalias \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass mysecretpass \
+              -keypass mysecretpass \
+              -dname "CN=Developer, OU=Dev, O=App, L=City, ST=State, C=ID"
+          fi
+
       - name: Restore Gradle Wrapper Binary
         run: |
           mkdir -p gradle/wrapper
