@@ -1,16 +1,28 @@
 package com.jargo.adboptimizer
 
-import java.io.InputStream
-import java.io.OutputStream
-import java.net.Socket
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
+import android.net.LocalSocket
+import android.net.LocalSocketAddress
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.PrintWriter
 
 object AdbManager {
-    private var connectedPort: Int = -1
-    private var isConnected: Boolean = false
+    private const val SOCKET_NAME = "jargo_adb_server"
+    
+    // Perintah Starter untuk menembak app_process dari ADB
+    const val STARTER_CMD = "export PKG=com.jargo.adboptimizer; export APK=\$(pm path \$PKG | cut -d':' -f2 | tr -d '\\r'); CLASSPATH=\$APK app_process /system/bin com.jargo.adboptimizer.server.Server &"
 
-    // Sanitizer: Hapus prefix 'adb shell' atau 'adb'
+    fun isDaemonAlive(): Boolean {
+        return try {
+            val socket = LocalSocket()
+            socket.connect(LocalSocketAddress(SOCKET_NAME))
+            socket.close()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun sanitizeCommand(command: String): String {
         var clean = command.trim()
         if (clean.startsWith("adb shell ")) {
@@ -21,75 +33,29 @@ object AdbManager {
         return clean.trim()
     }
 
-    fun connect(port: Int): Result<String> {
-        return try {
-            val socket = Socket("127.0.0.1", port)
-            socket.close()
-            connectedPort = port
-            isConnected = true
-            Result.success("Terhubung ke ADB Local Socket 127.0.0.1:$port")
-        } catch (e: Exception) {
-            isConnected = false
-            Result.failure(Exception("Gagal terhubung ke port $port: ${e.message}"))
-        }
-    }
-
     fun executeCommand(command: String): String {
         val cleanCmd = sanitizeCommand(command)
-        if (!isConnected || connectedPort <= 0) {
-            return "EXEC_ERROR: ADB Socket belum terhubung. Lakukan Connect Port terlebih dahulu."
-        }
-
         return try {
-            Socket("127.0.0.1", connectedPort).use { socket ->
-                socket.soTimeout = 5000
-                val output = socket.getOutputStream()
-                val input = socket.getInputStream()
+            val socket = LocalSocket()
+            socket.connect(LocalSocketAddress(SOCKET_NAME))
+            socket.soTimeout = 5000
 
-                // Kirim ADB OPEN Packet
-                val service = "shell:$cleanCmd"
-                sendAdbPacket(output, A_OPEN, 1, 0, service.toByteArray(Charsets.UTF_8))
+            val writer = PrintWriter(socket.outputStream, true)
+            val reader = BufferedReader(InputStreamReader(socket.inputStream))
 
-                // Baca response stream
-                val response = StringBuilder()
-                val buffer = ByteArray(1024)
-                var bytesRead: Int
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    response.append(String(buffer, 0, bytesRead, Charsets.UTF_8))
-                }
-                
-                val result = response.toString().trim()
-                if (result.isEmpty()) "SUCCESS (OK)" else result
+            writer.println(cleanCmd)
+
+            val response = StringBuilder()
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                response.append(line).append("\n")
             }
+
+            socket.close()
+            val result = response.toString().trim()
+            if (result.isEmpty()) "SUCCESS (OK)" else result
         } catch (e: Exception) {
-            "EXEC_ERROR: ${e.localizedMessage ?: "Gagal mengeksekusi via ADB Socket"}"
+            "EXEC_ERROR: Daemon Shizuku (UID 2000) belum aktif. Jalankan Starter Command via ADB terlebih dahulu."
         }
-    }
-
-    // ADB Protocol Constants
-    private const val A_OPEN = 0x4e45504f // "OPEN"
-
-    private fun sendAdbPacket(output: OutputStream, command: Int, arg0: Int, arg1: Int, payload: ByteArray) {
-        val header = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN)
-        header.putInt(command)
-        header.putInt(arg0)
-        header.putInt(arg1)
-        header.putInt(payload.size)
-        header.putInt(getChecksum(payload))
-        header.putInt(command xor -0x1)
-
-        output.write(header.array())
-        if (payload.isNotEmpty()) {
-            output.write(payload)
-        }
-        output.flush()
-    }
-
-    private fun getChecksum(payload: ByteArray): Int {
-        var sum = 0
-        for (b in payload) {
-            sum += b.toInt() and 0xFF
-        }
-        return sum
     }
 }
