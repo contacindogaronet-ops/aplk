@@ -1,10 +1,8 @@
 package com.jargo.adboptimizer
 
-import android.content.Context
 import dadb.Dadb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 
 object AdbManager {
 
@@ -21,37 +19,21 @@ object AdbManager {
         dadbInstance = null
     }
 
-    // 1. Eksekusi Pairing ADB internal (Otomatis tanpa app luar)
-    suspend fun pair(host: String = "127.0.0.1", port: Int, pairingCode: String): Result<String> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val paired = Dadb.pair(host, port, pairingCode)
-                if (paired) {
-                    Result.success("PAIRING_SUCCESS: Berhasil terhubung ke ADB Pairing Server ($port).")
-                } else {
-                    Result.failure(Exception("PAIRING_FAILED: Kode pairing atau port salah."))
-                }
-            } catch (e: Exception) {
-                Result.failure(Exception("PAIRING_ERROR: ${e.localizedMessage}"))
-            }
-        }
-    }
-
-    // 2. Hubungkan ADB Client Internal ke Wireless Debugging
-    suspend fun connect(context: Context, host: String = "127.0.0.1", port: Int): Result<String> {
+    // Hubungkan ADB Client Internal ke Wireless Debugging Port
+    suspend fun connect(host: String = "127.0.0.1", port: Int): Result<String> {
         return withContext(Dispatchers.IO) {
             try {
                 disconnect()
-                // Membuka koneksi ADB Shell berbasis TLS Socket internal
+                // Inisialisasi TCP Socket ADB langsung
                 val dadb = Dadb.create(host, port)
                 dadbInstance = dadb
 
-                // Test eksekusi shell sederhana untuk verifikasi UID 2000
+                // Tes eksekusi perintah "id" untuk memverifikasi konteks UID 2000
                 val response = dadb.shell("id")
                 if (response.exitCode == 0) {
-                    Result.success("CONNECT_SUCCESS: Terhubung ke Wireless ADB (UID 2000 / AID_SHELL).\nResult: ${response.output.trim()}")
+                    Result.success("CONNECT_SUCCESS: Terhubung ke Wireless ADB (UID 2000 / AID_SHELL).\nOutput: ${response.output.trim()}")
                 } else {
-                    Result.failure(Exception("CONNECT_FAILED: Exit Code ${response.exitCode}"))
+                    Result.failure(Exception("CONNECT_FAILED (Exit ${response.exitCode}): ${response.output}"))
                 }
             } catch (e: Exception) {
                 disconnect()
@@ -70,7 +52,7 @@ object AdbManager {
         return clean.trim()
     }
 
-    // 3. Eksekusi Perintah Shell Langsung dari ADB Engine Internal
+    // Eksekusi Shell Command via Internal Dadb Client Engine
     suspend fun executeCommand(command: String): String {
         return withContext(Dispatchers.IO) {
             val dadb = dadbInstance
@@ -79,7 +61,7 @@ object AdbManager {
             val cleanCmd = sanitizeCommand(command)
             try {
                 val response = dadb.shell(cleanCmd)
-                val output = (response.output + "\n" + response.errorOutput).trim()
+                val output = response.output.trim()
                 if (response.exitCode == 0) {
                     if (output.isEmpty()) "SUCCESS (OK)" else output
                 } else {

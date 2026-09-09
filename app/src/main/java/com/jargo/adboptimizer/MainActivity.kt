@@ -44,12 +44,9 @@ fun OptimizerScreen(assetsManager: android.content.res.AssetManager) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var pairPort by remember { mutableStateOf("") }
-    var pairCode by remember { mutableStateOf("") }
     var connectPort by remember { mutableStateOf("") }
-
     var isConnected by remember { mutableStateOf(AdbManager.isConnected()) }
-    var logs by remember { mutableStateOf("System Ready (Pure Standalone ADB Mode).\n") }
+    var logs by remember { mutableStateOf("System Ready (Pure Standalone ADB Engine).\n") }
     val scrollState = rememberScrollState()
 
     Column(
@@ -57,10 +54,10 @@ fun OptimizerScreen(assetsManager: android.content.res.AssetManager) {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text("ADB Optimizer (Pure Standalone APK)", fontSize = 18.sp, color = Color.Black)
+        Text("ADB Optimizer (Standalone ADB Engine)", fontSize = 18.sp, color = Color.Black)
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Status Bar
+        // Indikator Status Koneksi
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -79,58 +76,10 @@ fun OptimizerScreen(assetsManager: android.content.res.AssetManager) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Card 1: ADB Pair
+        // Card Koneksi ADB Wireless
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text("1. Pair Wireless ADB", fontSize = 13.sp)
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = pairPort,
-                        onValueChange = { pairPort = it },
-                        label = { Text("Pair Port") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = pairCode,
-                        onValueChange = { pairCode = it },
-                        label = { Text("Pair Code") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Button(
-                    onClick = {
-                        val pPort = pairPort.toIntOrNull()
-                        if (pPort != null && pairCode.isNotEmpty()) {
-                            logs += "> Memulai proses ADB Pairing pada port $pPort...\n"
-                            scope.launch {
-                                val res = AdbManager.pair(port = pPort, pairingCode = pairCode)
-                                res.onSuccess { msg -> logs += "$msg\n" }
-                                   .onFailure { err -> logs += "${err.localizedMessage}\n" }
-                            }
-                        } else {
-                            Toast.makeText(context, "Port Pair dan Code wajib diisi!", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Eksekusi Pair")
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Card 2: ADB Connect
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text("2. Connect Wireless ADB", fontSize = 13.sp)
+                Text("Connect Wireless Debugging Port", fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -140,7 +89,7 @@ fun OptimizerScreen(assetsManager: android.content.res.AssetManager) {
                     OutlinedTextField(
                         value = connectPort,
                         onValueChange = { connectPort = it },
-                        label = { Text("Connect Port") },
+                        label = { Text("Port (misal: 37xxx / 5555)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f)
                     )
@@ -150,7 +99,7 @@ fun OptimizerScreen(assetsManager: android.content.res.AssetManager) {
                             if (cPort != null) {
                                 logs += "> Mengisi koneksi ADB ke 127.0.0.1:$cPort...\n"
                                 scope.launch {
-                                    val res = AdbManager.connect(context = context, port = cPort)
+                                    val res = AdbManager.connect(port = cPort)
                                     res.onSuccess { msg ->
                                         logs += "$msg\n"
                                         isConnected = true
@@ -172,7 +121,7 @@ fun OptimizerScreen(assetsManager: android.content.res.AssetManager) {
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Action Button: Run YAML
+        // Tombol Eksekusi Modul YAML
         Button(
             onClick = {
                 scope.launch {
@@ -209,7 +158,7 @@ fun OptimizerScreen(assetsManager: android.content.res.AssetManager) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // System Console Log
+        // Log Output Konsol
         Text("System Output Logs:", fontSize = 11.sp)
         Box(
             modifier = Modifier
