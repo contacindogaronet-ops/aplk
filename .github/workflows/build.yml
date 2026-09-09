@@ -21,6 +21,12 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Ensure Gradle Wrapper Exists
+        run: |
+          if [ ! -f gradlew ]; then
+            gradle wrapper --gradle-version 8.7
+          fi
+
       - name: Setup Gradle & Enable Caching
         uses: gradle/actions/setup-gradle@v3
         with:
