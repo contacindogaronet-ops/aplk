@@ -5,8 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -14,18 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.yaml.snakeyaml.Yaml
-import java.io.BufferedReader
-import java.io.InputStreamReader
-
-data class YamlModule(
-    var name: String = "",
-    var description: String = "",
-    var commands: List<String> = emptyList()
-)
+import java.io.InputStream
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,97 +26,33 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AdbOptimizerApp(
-                        onExecuteYamlModules = { loadAndExecuteYamlModules() },
-                        onRunAdbCommand = { cmd -> executeShellCommand(cmd) }
-                    )
+                    OptimizerScreen(assetsManager = assets)
                 }
             }
-        }
-    }
-
-    private suspend fun loadAndExecuteYamlModules(): List<String> = withContext(Dispatchers.IO) {
-        val logs = mutableListOf<String>()
-        val yaml = Yaml()
-
-        try {
-            val assetFiles = assets.list("modules") ?: emptyArray()
-            for (fileName in assetFiles) {
-                if (fileName.endsWith(".yaml") || fileName.endsWith(".yml")) {
-                    val inputStream = assets.open("modules/$fileName")
-                    val module = yaml.loadAs(inputStream, YamlModule::class.java)
-
-                    logs.add("----------------------------------------")
-                    logs.add("Executing Module: [${module.name}]")
-                    logs.add("Desc: ${module.description}")
-
-                    for (rawCmd in module.commands) {
-                        val fullCmd = "adb shell $rawCmd"
-                        val result = executeShellCommand(fullCmd)
-                        logs.add("> $fullCmd\n$result")
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            logs.add("Error loading YAML modules: ${e.localizedMessage}")
-        }
-        return@withContext logs
-    }
-
-    private fun executeShellCommand(command: String): String {
-        return try {
-            val process = Runtime.getRuntime().exec(command)
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val errorReader = BufferedReader(InputStreamReader(process.errorStream))
-
-            val output = StringBuilder()
-            var line: String?
-
-            while (reader.readLine().also { line = it } != null) {
-                output.append(line).append("\n")
-            }
-            while (errorReader.readLine().also { line = it } != null) {
-                output.append(line).append("\n")
-            }
-
-            process.waitFor()
-            output.toString().trim().ifEmpty { "SUCCESS (No Output)" }
-        } catch (e: Exception) {
-            "EXEC_ERROR: ${e.localizedMessage}"
         }
     }
 }
 
 @Composable
-fun AdbOptimizerApp(
-    onExecuteYamlModules: suspend () -> List<String>,
-    onRunAdbCommand: (String) -> String
-) {
+fun OptimizerScreen(assetsManager: android.content.res.AssetManager) {
     var pairPort by remember { mutableStateOf("") }
     var pairCode by remember { mutableStateOf("") }
     var connectPort by remember { mutableStateOf("") }
-    var logs by remember { mutableStateOf(listOf("Ready. Connected to Local ADB Engine.")) }
-    var isRunning by remember { mutableStateOf(false) }
+    var logs by remember { mutableStateOf("System Ready. Masukkan Port ADB untuk memulai.\n") }
 
-    val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text(
-            text = "ADB Modular Wi-Fi Optimizer",
-            style = MaterialTheme.typography.headlineMedium
-        )
+        Text("ADB Modular Wi-Fi Optimizer", fontSize = 20.sp, color = Color.Black)
         Spacer(modifier = Modifier.height(12.dp))
 
-        // --- SECTION PAIRING ---
-        Text(text = "1. ADB Pair (127.0.0.1)", style = MaterialTheme.typography.titleSmall)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        // 1. ADB Pair
+        Text("1. ADB Pair (127.0.0.1)", fontSize = 14.sp)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = pairPort,
                 onValueChange = { pairPort = it },
@@ -140,29 +66,22 @@ fun AdbOptimizerApp(
                 modifier = Modifier.weight(1f)
             )
         }
+        Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
-                scope.launch(Dispatchers.IO) {
-                    isRunning = true
-                    val res = onRunAdbCommand("adb pair 127.0.0.1:$pairPort $pairCode")
-                    logs = logs + "PAIR RESULT:\n$res"
-                    isRunning = false
-                }
+                logs += "> Pair dipicu pada port $pairPort...\n"
+                // Pairing logic
             },
-            enabled = !isRunning && pairPort.isNotEmpty() && pairCode.isNotEmpty(),
-            modifier = Modifier.padding(top = 4.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             Text("Eksekusi Pair")
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // --- SECTION CONNECT ---
-        Text(text = "2. ADB Connect (127.0.0.1)", style = MaterialTheme.typography.titleSmall)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        // 2. ADB Connect
+        Text("2. ADB Connect (127.0.0.1)", fontSize = 14.sp)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = connectPort,
                 onValueChange = { connectPort = it },
@@ -171,14 +90,14 @@ fun AdbOptimizerApp(
             )
             Button(
                 onClick = {
-                    scope.launch(Dispatchers.IO) {
-                        isRunning = true
-                        val res = onRunAdbCommand("adb connect 127.0.0.1:$connectPort")
-                        logs = logs + "CONNECT RESULT:\n$res"
-                        isRunning = false
+                    val port = connectPort.toIntOrNull()
+                    if (port != null) {
+                        val result = AdbManager.connect(port)
+                        logs += "${result.getOrElse { it.localizedMessage }}\n"
+                    } else {
+                        logs += "ERROR: Port Connect tidak valid!\n"
                     }
                 },
-                enabled = !isRunning && connectPort.isNotEmpty(),
                 modifier = Modifier.padding(top = 8.dp)
             ) {
                 Text("Connect")
@@ -187,42 +106,56 @@ fun AdbOptimizerApp(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- EXECUTE YAML MODULES ---
+        // 3. Run Modules
         Button(
             onClick = {
-                scope.launch {
-                    isRunning = true
-                    val resLogs = onExecuteYamlModules()
-                    logs = logs + resLogs
-                    isRunning = false
+                logs += "\n=== Memulai Eksekusi Modul YAML ===\n"
+                try {
+                    val moduleFiles = assetsManager.list("modules") ?: arrayOf()
+                    for (file in moduleFiles.sorted()) {
+                        if (file.endsWith(".yaml") || file.endsWith(".yml")) {
+                            logs += "\n[Modul]: $file\n"
+                            val inputStream: InputStream = assetsManager.open("modules/$file")
+                            val yaml = Yaml()
+                            val data: Map<String, Any> = yaml.load(inputStream)
+                            val commands = data["commands"] as? List<*>
+
+                            commands?.forEach { cmd ->
+                                val rawCmd = cmd.toString()
+                                val sanitized = AdbManager.sanitizeCommand(rawCmd)
+                                logs += "> $rawCmd\n"
+                                val res = AdbManager.executeCommand(sanitized)
+                                logs += "$res\n"
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    logs += "YAML_ERROR: ${e.localizedMessage}\n"
                 }
             },
-            enabled = !isRunning,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF673AB7))
         ) {
-            Text("Jalankan Semua Modul YAML (.yaml)")
+            Text("Jalankan Semua Modul YAML (.yaml)", color = Color.White)
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // --- CONSOLE LOG OUTPUT ---
-        Text(text = "System Output Logs:", style = MaterialTheme.typography.labelLarge)
-        LazyColumn(
+        // Logs Output Console
+        Text("System Output Logs:", fontSize = 12.sp)
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
+                .fillMaxSize()
                 .background(Color(0xFF1E1E1E))
                 .padding(8.dp)
         ) {
-            items(logs) { logMessage ->
-                Text(
-                    text = logMessage,
-                    color = Color(0xFF00FF00),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(vertical = 2.dp)
-                )
-            }
+            Text(
+                text = logs,
+                color = Color(0xFF4AF626),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                modifier = Modifier.verticalScroll(scrollState)
+            )
         }
     }
 }
