@@ -21,10 +21,12 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Ensure Gradle Wrapper Exists
+      - name: Restore Gradle Wrapper Binary
         run: |
-          if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version 8.7
+          mkdir -p gradle/wrapper
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "gradle-wrapper.jar not found, restoring from official release..."
+            curl -sSL "https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
           fi
 
       - name: Setup Gradle & Enable Caching
